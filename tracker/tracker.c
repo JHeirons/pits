@@ -63,19 +63,23 @@ struct TConfig Config;
 #define NTX2B_ENABLE_BCM	17
 
 int Records, FileNumber;
-struct termios options;
+struct termios options;     //Creates data struct containing terminal information https://www.mkssoftware.com/docs/man5/struct_termios.5.asp
 char *SSDVFolder="/home/pi/pits/tracker/images"; //Creates folder for images
  
+//Function to build sentance to transmit. Takes the memory address of transmit line, a count and the transmit GPS data from the GPS memory address 
 void BuildSentence(char *TxLine, int SentenceCounter, struct TGPS *GPS)
 {
+    //Define arrays for time and extra fields for batt and sensors
 	char TimeBuffer[12], ExtraFields1[20], ExtraFields2[20], ExtraFields3[20];
 	
+    //Sends floating point decimal to TimeBuffer arrray, writes h/m/s held in the memory address of GPS 
 	sprintf(TimeBuffer, "%02d:%02d:%02d", GPS->Hours, GPS->Minutes, GPS->Seconds);
 	
 	ExtraFields1[0] = '\0';
 	ExtraFields2[0] = '\0';
 	ExtraFields3[0] = '\0';
 	
+    //Checks the version of rasberry pi/PITs to determine whether batt voltage is measured and prints voltage to extrafield1
 	if ((Config.BoardType == 3) || (Config.DisableADC))
 	{
 			// Pi Zero - no ADC on the PITS Zero, or manually disabled ADC
@@ -95,19 +99,25 @@ void BuildSentence(char *TxLine, int SentenceCounter, struct TGPS *GPS)
 	
 	if (Config.EnableBMP085)
 	{
-		sprintf(ExtraFields2, ",%.1f,%.0f", GPS->BMP180Temperature, GPS->Pressure);
+        //If the BMP085 sensor is connected, enable and print to ef2 the temperature and pressure 
+        
+        sprintf(ExtraFields2, ",%.1f,%.0f", GPS->BMP180Temperature, GPS->Pressure);
 	}
 	
+    
 	if (Config.EnableBME280)
 	{
+        //If the BME280 sensor is connected, enable and print to ef2 the temp, press and humidity
 		sprintf(ExtraFields2, ",%.1f,%.0f,%0.1f", GPS->BMP180Temperature, GPS->Pressure, GPS->Humidity);
 	}
 	
 	if (GPS->DS18B20Count > 1)
 	{
+        //Else the DS18B20 sensor is connected which reads temperature
 		sprintf(ExtraFields3, ",%3.1f", GPS->DS18B20Temperature[Config.ExternalDS18B20]);
 	}
 	
+    //Writes the information to be transmitted the transmit line variable. includes the payload id, timestamp, GPS data and extra fields from sensors
     sprintf(TxLine, "$$%s,%d,%s,%7.5lf,%7.5lf,%5.5" PRId32 ",%d,%d,%d,%3.1f%s%s%s",
             Config.Channels[RTTY_CHANNEL].PayloadID,
             SentenceCounter,
@@ -122,7 +132,8 @@ void BuildSentence(char *TxLine, int SentenceCounter, struct TGPS *GPS)
 			ExtraFields1,
 			ExtraFields2,
 			ExtraFields3);
-
+    
+    //Call checksum function on sentence to transmit
 	AppendCRC(TxLine);
 	
     LogMessage("RTTY: %.70s", TxLine);
