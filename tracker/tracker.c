@@ -139,9 +139,9 @@ void BuildSentence(char *TxLine, int SentenceCounter, struct TGPS *GPS)
     LogMessage("RTTY: %.70s", TxLine);
 }
 
-
+//Function to take user inputed baud rate and set the com port with termios
 speed_t BaudToSpeed(int baud)
-{
+{   
 	switch (baud)
 	{
 		case 50: return B50;
@@ -156,6 +156,7 @@ speed_t BaudToSpeed(int baud)
 	return 0;
 }
 
+//Function to load the config files needed for PITS to operate
 void LoadConfigFile(struct TConfig *Config)
 {
 	const char* CameraTypes[4] = {"None", "CSI Pi Camera - raspistill", "USB webcam - fswebcam", "USB camera - gphoto2"};
@@ -345,6 +346,7 @@ void LoadConfigFile(struct TConfig *Config)
 	fclose(fp);
 }
 
+//Set frequency of the radio transmitter
 void SetMTX2Frequency(char *FrequencyString)
 {
 	float _mtx2comp;
@@ -354,6 +356,7 @@ void SetMTX2Frequency(char *FrequencyString)
 	double Frequency;
 	int wave_id;
 	
+    //Checks to see if frequency string is a channel number to convert to frequency or a frequency that needs to be converted to floating point with atof() 
 	if (strlen(FrequencyString) < 3)
 	{
 		// Convert channel number to frequency
@@ -371,27 +374,35 @@ void SetMTX2Frequency(char *FrequencyString)
 	_mtx2comp=(Frequency+0.0015)/6.5;
 	_mtx2int=_mtx2comp;
 	_mtx2fractional = ((_mtx2comp-_mtx2int)+1) * 524288;
+    //restricts mtx2xomand to 17 bytes
 	snprintf(_mtx2command,17,"@PRG_%02X%06lX\r",_mtx2int-1, _mtx2fractional);
 	printf("MTX2 command  is %s\n", _mtx2command);
 	
 	if (gpioInitialise() < 0)
 	{
+        //Checks that the pi general purpose input/out has been intialised
 		printf("pigpio initialisation failed.\n");
 		return;
 	}
 
 	gpioSetMode(NTX2B_ENABLE_BCM, PI_OUTPUT);	
 	
+    //Creates empty waveform
 	gpioWaveAddNew();
-	
+    
+	//Adds waveform that represents the serial data to be transmit
 	gpioWaveAddSerial(NTX2B_ENABLE_BCM, 9600, 8, 2, 0, strlen(_mtx2command), _mtx2command);
 	
+    //Creates waveform from data provided and sets it to the wave id variable
 	wave_id = gpioWaveCreate();
 
+    //Checks if wave_id is valid
 	if (wave_id >= 0)
 	{
+        //Send waveform. I thnk in mode send once?
 		gpioWaveTxSend(wave_id, 0);
-
+        
+        //If waveform is currently busy delays sending next waveform
 		while (gpioWaveTxBusy())
 		{
 			time_sleep(0.1);
