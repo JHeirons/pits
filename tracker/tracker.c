@@ -63,7 +63,7 @@ struct TConfig Config;
 #define NTX2B_ENABLE_BCM	17
 
 int Records, FileNumber;
-struct termios options;     //Creates data struct containing terminal information https://www.mkssoftware.com/docs/man5/struct_termios.5.asp
+struct termios options;     //Creates data struct containing terminal information http://pubs.opengroup.org/onlinepubs/009695399/basedefs/termios.h.html
 char *SSDVFolder="/home/pi/pits/tracker/images"; //Creates folder for images
  
 //Function to build sentance to transmit. Takes the memory address of transmit line, a count and the transmit GPS data from the GPS memory address 
@@ -346,7 +346,7 @@ void LoadConfigFile(struct TConfig *Config)
 	fclose(fp);
 }
 
-//Set frequency of the radio transmitter
+//Set frequency of the radio transmitter MTX2
 void SetMTX2Frequency(char *FrequencyString)
 {
 	float _mtx2comp;
@@ -419,6 +419,7 @@ char *SerialPortName(void)
 	return "/dev/ttyAMA0";
 }
 
+//Set frequency of the radio transmitter NTX2B
 void SetNTX2BFrequency(char *FrequencyString)
 {
 	int fd, Frequency;
@@ -493,7 +494,7 @@ void SetNTX2BFrequency(char *FrequencyString)
 	}
 }
 
-
+//Function that determins which radio transmitter is attached and passes frequency to the relevant function
 void SetFrequency(char *Frequency)
 {
 	if (Config.BoardType)
@@ -507,11 +508,12 @@ void SetFrequency(char *Frequency)
 	}
 }
 
+//Function that opens the serial port to be used
 int OpenSerialPort(void)
 {
 	int fd;
 
-	fd = open(SerialPortName(), O_WRONLY | O_NOCTTY);	// O_NDELAY);
+	fd = open(SerialPortName(), O_WRONLY | O_NOCTTY);	// O_NDELAY); //Open for write only and NOCCTY if detects a terminal device will not allow the terminal to become the controlling device
 	if (fd >= 0)
 	{
 		/* get the current options */
@@ -521,7 +523,7 @@ int OpenSerialPort(void)
 		options.c_lflag &= ~ECHO;
 		options.c_cc[VMIN]  = 0;
 		options.c_cc[VTIME] = 10;
-
+        //set input and oupt speeds
 		cfsetispeed(&options, Config.TxSpeed);
 		cfsetospeed(&options, Config.TxSpeed);
 		options.c_cflag |= CSTOPB;
@@ -545,6 +547,7 @@ int OpenSerialPort(void)
 	return fd;
 }
 
+//Function to send sentence
 void SendSentence(int fd, char *TxLine)
 {
 	// printf("Sending sentence ...\n");
@@ -560,6 +563,7 @@ void SendSentence(int fd, char *TxLine)
 	tcsetattr(fd, TCSAFLUSH, &options);
 }
 
+//function to send radio transmited image
 int SendRTTYImage(int fd)
 {
     unsigned char Buffer[256];
@@ -594,6 +598,7 @@ int SendRTTYImage(int fd)
     return SentSomething;
 }
 
+//function to send ip address of the interface
 void SendIPAddress(int fd)
 {
     struct ifaddrs *ifap, *ifa;
@@ -627,6 +632,7 @@ void SendIPAddress(int fd)
     freeifaddrs(ifap);
 }
 
+//Function that returns free space avliable on SD card
 void SendFreeSpace(int fd)
 {
 	struct statvfs vfs;
@@ -641,6 +647,7 @@ void SendFreeSpace(int fd)
 	}
 }
 
+//Function to upload to LORA channel
 int LoRaChannelUploadNow(int LoRaChannel, struct TGPS *GPS, int PacketTime)
 {
 	// Can't use time till we have it
@@ -663,6 +670,7 @@ int LoRaChannelUploadNow(int LoRaChannel, struct TGPS *GPS, int PacketTime)
 	return 0;
 }
 
+//Function to upload to channel, both can be commeted out at the minute?
 int LoRaUploadNow(struct TGPS *GPS, int PacketTime)
 {
 	// Can't use time till we have it
@@ -673,6 +681,7 @@ int LoRaUploadNow(struct TGPS *GPS, int PacketTime)
 	
 	return 0;
 }
+
 
 int main(void)
 {
@@ -703,7 +712,8 @@ int main(void)
 	printf(    "=======================================\n\n");
 
 	Config.BoardType = GetBoardType();
-
+    
+    //Checks board type and sets serial data and warning LEDs for the correct pins
 	if (Config.BoardType)
 	{
 		if (Config.BoardType == 3)
@@ -745,12 +755,14 @@ int main(void)
 	printf("Device Tree is %s\n\n", devicetree() ? "enabled" : "disabled");
 
 	LoadConfigFile(&Config);
-
+    
+    //Disables monitor?
 	if (Config.DisableMonitor)
 	{
 		system("/opt/vc/bin/tvservice -off");
 	}
 	
+    //Clears existing files from pits
 	if (FileExists("/boot/clear.txt"))
 	{
 		// remove SSDV and other camera images, plus log files
@@ -764,7 +776,8 @@ int main(void)
 		
 	// Remove any old SSDV files
 	system("rm -f ssdv*.bin");
-
+    
+    //Intialises the GPS variables to 0
 	GPS.SecondsInDay = 0;
 	GPS.Hours = 0;
 	GPS.Minutes = 0;
@@ -803,26 +816,31 @@ int main(void)
 		pinMode (UBLOX_ENABLE, OUTPUT);
 		digitalWrite (UBLOX_ENABLE, 0);
 	}
-
+    
+    //If RTTY config is enabled
 	if (!Config.DisableRTTY)
 	{
+        //Take the frequency from the config file
 		if (*Config.Frequency)
 		{
+            //Pass frequency to the set frequency function
 			SetFrequency(Config.Frequency);
 		}
 	
 		fd = OpenSerialPort();
-
+        
+        //Enable the radio as its configured
 		digitalWrite (NTX2B_ENABLE, 1);
 	}
 		
-	// SSDV Folders
+	// adds path to SSDV Folders to the different radio channels aviliable on pits
 	sprintf(Config.Channels[0].SSDVFolder, "%s/RTTY", SSDVFolder);
-	*Config.Channels[1].SSDVFolder = '\0';										// No folder for APRS images
+	*Config.Channels[1].SSDVFolder = '\0';						   // No folder for APRS images
 	sprintf(Config.Channels[2].SSDVFolder, "%s/LORA0", SSDVFolder);
 	sprintf(Config.Channels[3].SSDVFolder, "%s/LORA1", SSDVFolder);
 	sprintf(Config.Channels[4].SSDVFolder, "%s/FULL", SSDVFolder);
-		
+
+    //Set up camera coneceted to the Pi
 	if (Config.Camera)
 	{
 		// Create SSDV Folders
@@ -830,7 +848,7 @@ int main(void)
 		{
 			mkdir(SSDVFolder, 0777);
 		}	
-	
+	   
 		for (i=0; i<5; i++)
 		{
 			if (*Config.Channels[i].SSDVFolder)
@@ -858,12 +876,14 @@ int main(void)
 		}
 	}
 	
+    //Create GPS path or return error message
 	if (pthread_create(&GPSThread, NULL, GPSLoop, &GPS))
 	{
 		fprintf(stderr, "Error creating GPS thread\n");
 		return 1;
 	}
 
+    //Config APRS or return error message
 	if (*(Config.APRS_Callsign) && Config.APRS_ID && Config.APRS_Period)
 	{
 		if (pthread_create(&APRSThread, NULL, APRSLoop, &GPS))
@@ -873,6 +893,7 @@ int main(void)
 		}
 	}
 	
+    
 	if (Config.LoRaDevices[0].InUse || Config.LoRaDevices[1].InUse)
 	{
 		if (pthread_create(&LoRaThread, NULL, LoRaLoop, &GPS))
@@ -886,7 +907,8 @@ int main(void)
 		fprintf(stderr, "Error creating DS18B20s thread\n");
 		return 1;
 	}
-
+    
+    //Error messages for ADC for battery voltage
 	if ((Config.BoardType != 3) && (!Config.DisableADC))
 	{
 		// Not a zero, so should have ADC on it
