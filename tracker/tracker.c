@@ -116,6 +116,46 @@ void BuildSentence(char *TxLine, int SentenceCounter, struct TGPS *GPS)
         //Else the DS18B20 sensor is connected which reads temperature
 		sprintf(ExtraFields3, ",%3.1f", GPS->DS18B20Temperature[Config.ExternalDS18B20]);
 	}
+    
+    if (Config.ExternalDataFileName[0])
+	{
+		if (ExternalFile == NULL)
+		{
+			{
+				// Try to open external file
+				ExternalFile = fopen(Config.ExternalDataFileName, "rt");
+			}
+		}
+		else
+		{
+			// Check if file has been deleted
+			if (access(Config.ExternalDataFileName, F_OK ) == -1 )
+			{
+				// It's been deleted
+				ExternalFile = NULL;
+			}
+		}
+		
+		if (ExternalFile)
+		{
+			char line[100];
+			
+			line[0] = '\0';
+			
+			// Keep reading lines till we get to the end
+			while (fgets(line, sizeof(line), ExternalFile) != NULL)
+			{
+			}
+			
+			if (line[0])
+			{
+				line[strcspn(line, "\n")] = '\0';
+				sprintf(ExternalFields, ",%s", line);
+			}
+			fseek(ExternalFile, 0, SEEK_END);
+			// clearerr(ExternalFile);
+		}
+	}
 	
     //Writes the information to be transmitted the transmit line variable. includes the payload id, timestamp, GPS data and extra fields from sensors
     sprintf(TxLine, "$$%s,%d,%s,%7.5lf,%7.5lf,%5.5" PRId32 ",%d,%d,%d,%3.1f%s%s%s",
@@ -131,7 +171,8 @@ void BuildSentence(char *TxLine, int SentenceCounter, struct TGPS *GPS)
             GPS->DS18B20Temperature[(GPS->DS18B20Count > 1) ? (1-Config.ExternalDS18B20) : 0],
 			ExtraFields1,
 			ExtraFields2,
-			ExtraFields3);
+			ExtraFields3,
+            ExternalFields);
     
     //Call checksum function on sentence to transmit
 	AppendCRC(TxLine);
