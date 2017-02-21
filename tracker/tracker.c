@@ -69,8 +69,18 @@ char *SSDVFolder="/home/pi/pits/tracker/images"; //Creates folder for images
 //Function to build sentance to transmit. Takes the memory address of transmit line, a count and the transmit GPS data from the GPS memory address 
 void BuildSentence(char *TxLine, int SentenceCounter, struct TGPS *GPS)
 {
-    //Define arrays for time and extra fields for batt and sensors
+    static char ExternalFields[100];
+	static FILE *ExternalFile=NULL;
+	static int FirstTime=1;
+	//Define arrays for time and extra fields for batt and sensors
 	char TimeBuffer[12], ExtraFields1[20], ExtraFields2[20], ExtraFields3[20];
+	
+	if (FirstTime)
+	{
+		FirstTime = 0;
+		ExternalFields[0] = '\0';
+	}
+    
 	
     //Sends floating point decimal to TimeBuffer arrray, writes h/m/s held in the memory address of GPS 
 	sprintf(TimeBuffer, "%02d:%02d:%02d", GPS->Hours, GPS->Minutes, GPS->Seconds);

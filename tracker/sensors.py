@@ -1,5 +1,6 @@
 from sense_hat import SenseHat
 import time
+import csv
 
 sense = SenseHat()
 
@@ -33,8 +34,11 @@ while True:
 	line = "%s,%s,%s,%s,%s,%s,%s,%s,%s" % (t,h,p,pitch,roll,yaw,x,y,z)
 	
 	print (line)
-
-	with open("astropi.txt", "a") as myfile:
-		myfile.write(line + '\n')
+    
+    with open('sensors.csv', 'a') as csvfile:
+        comp_write = csv.writer(csvfile, delimiter=',', quotechar="'", quoting=csv.QUOTE_ALL)
+        comp_write.writerow(line) 
+        
+    new_entry()
 
 	time.sleep(0.5)
